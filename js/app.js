@@ -5,7 +5,7 @@
 
 import { parseMarkdown } from './parser.js';
 import { importWords, getTodayReviewWords, getTopFailWords, exportAllData, importAllData } from './store.js';
-import { startReview } from './ui.js';
+import { startReview, getIsReviewing } from './ui.js';
 import { getStats, renderStats } from './stats.js';
 
 /** 示例词库路径 */
@@ -109,6 +109,9 @@ function setupTabs() {
  * 加载复习 Tab（每日上限 120 词）
  */
 async function loadReviewTab() {
+  // 当前有复习在进行中，不重置 UI，保护卡片循环
+  if (getIsReviewing()) return;
+
   const words = await getTodayReviewWords(120);
 
   // 恢复初始状态

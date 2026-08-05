@@ -1,3 +1,14 @@
+---
+AIGC:
+    Label: "1"
+    ContentProducer: 001191440300708461136T1XGW3
+    ProduceID: 2214ff8ea460a4d6db6d084730ef43b7_a0f6e8e990d611f18e22525400f8a581
+    ReservedCode1: nd4G7yTexApixNqb0BGE8WQtrPAOQY33f8rvORAmv0Ku1KHOrMUCrsKPmo01vBDFdTFqC8pDCw6DKuVlUZ5z3yrL4OJhp+b4IgyNkHfcSUYtBQQ0RQEDFlYz5mb2O0Tb0CqiIi9jvB1rscy/v1K8NyJqCMJJehlNwLfCtE+TwODiXxhrKOu+f8z8ldY=
+    ContentPropagator: 001191440300708461136T1XGW3
+    PropagateID: 2214ff8ea460a4d6db6d084730ef43b7_a0f6e8e990d611f18e22525400f8a581
+    ReservedCode2: nd4G7yTexApixNqb0BGE8WQtrPAOQY33f8rvORAmv0Ku1KHOrMUCrsKPmo01vBDFdTFqC8pDCw6DKuVlUZ5z3yrL4OJhp+b4IgyNkHfcSUYtBQQ0RQEDFlYz5mb2O0Tb0CqiIi9jvB1rscy/v1K8NyJqCMJJehlNwLfCtE+TwODiXxhrKOu+f8z8ldY=
+---
+
 # 考研词汇闪卡 (Word Flash PWA)
 
 最小可用的 PWA 刷词工具，手机端像扇贝单词一样刷考研词汇。
@@ -73,3 +84,4 @@ npx serve . -l 3333
 1. 电脑端：把真题不会的词写成 Markdown → push 到 GitHub
 2. 手机端：打开 GitHub Pages 链接 → 自动加载新词 → 开始刷词
 3. 统计 Tab → 导出备份 → 微信发给电脑存档
+*（内容由AI生成，仅供参考）*

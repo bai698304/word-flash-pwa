@@ -12,6 +12,13 @@ let reviewQueue = [];
 let currentIndex = 0;
 /** 本轮评分记录 */
 let sessionStats = { forgot: 0, hard: 0, good: 0, easy: 0, total: 0 };
+/** 是否正在复习中（防止重复触发） */
+let isReviewing = false;
+
+/** 导出复习状态查询 */
+export function getIsReviewing() {
+  return isReviewing;
+}
 
 /**
  * 开始一轮复习
@@ -19,11 +26,15 @@ let sessionStats = { forgot: 0, hard: 0, good: 0, easy: 0, total: 0 };
  * @param {Function} onComplete - 复习完成回调
  */
 export function startReview(words, onComplete) {
+  // 已有复习在进行中，忽略重复触发
+  if (isReviewing) return;
+
   if (!words || words.length === 0) {
     onComplete({ total: 0, forgot: 0, hard: 0, good: 0, easy: 0 });
     return;
   }
 
+  isReviewing = true;
   reviewQueue = words;
   currentIndex = 0;
   sessionStats = { forgot: 0, hard: 0, good: 0, easy: 0, total: 0 };
@@ -106,6 +117,7 @@ function renderCard(word, onComplete) {
         renderCard(reviewQueue[currentIndex], onComplete);
       } else {
         // 全部完成
+        isReviewing = false;
         document.getElementById('card-area').classList.add('hidden');
         document.getElementById('review-complete').classList.remove('hidden');
 
