@@ -24,6 +24,9 @@ async function init() {
   // 自动同步进度（合并后的 progress.json）
   await autoSyncProgress();
 
+  // 自动扫描新词库文件
+  await autoSyncWords();
+
   // 设置 Tab 导航
   setupTabs();
 
@@ -66,6 +69,55 @@ async function autoSyncProgress() {
   } catch (err) {
     console.warn('[AutoSync] 同步失败', err);
     // 静默失败，不影响正常使用
+  }
+}
+
+/**
+ * 自动扫描 words/manifest.json，导入新词库文件
+ * 用 localStorage 记录已导入的文件名，每次只处理新增的
+ */
+async function autoSyncWords() {
+  try {
+    const resp = await fetch('words/manifest.json', { cache: 'no-cache' });
+    if (!resp.ok) {
+      console.log('[AutoSync] manifest.json 不存在，跳过');
+      return;
+    }
+    const manifest = await resp.json();
+    const allFiles = manifest.files || [];
+    if (allFiles.length === 0) return;
+
+    // 读取已导入记录
+    const imported = JSON.parse(localStorage.getItem('wordFlashImportedFiles') || '[]');
+    const newFiles = allFiles.filter(f => !imported.includes(f));
+
+    if (newFiles.length === 0) {
+      console.log('[AutoSync] 没有新词库文件');
+      return;
+    }
+
+    console.log(`[AutoSync] 发现 ${newFiles.length} 个新词库: ${newFiles.join(', ')}`);
+
+    for (const file of newFiles) {
+      try {
+        const mdResp = await fetch(`words/${encodeURIComponent(file)}`, { cache: 'no-cache' });
+        if (!mdResp.ok) continue;
+        const mdText = await mdResp.text();
+        const words = parseMarkdown(mdText);
+        if (words.length > 0) {
+          const result = await importWords(words);
+          console.log(`[AutoSync] ${file}: 新增 ${result.added} 词, 跳过 ${result.skipped} 词`);
+        }
+      } catch (e) {
+        console.warn(`[AutoSync] ${file} 处理失败`, e);
+      }
+    }
+
+    // 更新已导入记录
+    const newList = [...new Set([...imported, ...newFiles])];
+    localStorage.setItem('wordFlashImportedFiles', JSON.stringify(newList));
+  } catch (err) {
+    console.warn('[AutoSync] 词库同步失败', err);
   }
 }
 
