@@ -116,6 +116,15 @@ body {
 }
 
 /* ========== 扇贝风格卡片 ========== */
+.relearning-badge {
+  text-align: center;
+  color: var(--color-danger);
+  font-size: 14px;
+  font-weight: 600;
+  margin-bottom: 8px;
+  padding: 6px 0;
+}
+
 #card-area {
   perspective: 1000px;
   margin: 12px auto 0;

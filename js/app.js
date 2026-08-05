@@ -4,8 +4,9 @@
  */
 
 import { parseMarkdown } from './parser.js';
-import { importWords, getTodayReviewWords, getTopFailWords, exportAllData, importAllData, getSyncVersion, setSyncVersion } from './store.js';
-import { startReview, getIsReviewing } from './ui.js';
+import { importWords, getTodayReviewWords, getTopFailWords, exportAllData, importAllData, getSyncVersion, setSyncVersion, updateWord } from './store.js';
+import { renderCard, showComplete, setReviewing, getIsReviewing } from './ui.js';
+import { sm2 } from './sm2.js';
 import { getStats, renderStats } from './stats.js';
 
 /** 示例词库路径 */
@@ -196,15 +197,16 @@ function setupTabs() {
 }
 
 /**
- * 加载复习 Tab（每日上限 120 词）
+ * 加载复习 Tab（每日上限 120 词，含扇贝式 relearning 机制）
  */
+let reviewQueue = [];    // [{ word, mode: 'normal'|'relearning', confirmCount: 0|1 }]
+let sessionStats = { forgot: 0, hard: 0, good: 0, easy: 0, total: 0 };
+
 async function loadReviewTab() {
-  // 当前有复习在进行中，不重置 UI，保护卡片循环
   if (getIsReviewing()) return;
 
   const words = await getTodayReviewWords(120);
 
-  // 恢复初始状态
   document.getElementById('card-area').classList.remove('hidden');
   document.getElementById('review-complete').classList.add('hidden');
 
@@ -215,16 +217,96 @@ async function loadReviewTab() {
     return;
   }
 
-  // 显示本轮词量提示
-  const dueAll = await getTodayReviewWords(9999); // 查全量到期数
+  const dueAll = await getTodayReviewWords(9999);
   const remaining = dueAll.length - words.length;
   const hint = remaining > 0 ? `（今日到期共 ${dueAll.length} 词，本组 ${words.length} 词，剩余 ${remaining} 词待后续推送）` : '';
   document.getElementById('review-summary').textContent = hint;
 
-  // 开始复习
-  startReview(words, (stats) => {
-    console.log('[App] 本轮复习完成', stats);
+  reviewQueue = words.map(w => ({ word: w, mode: 'normal', confirmCount: 0 }));
+  sessionStats = { forgot: 0, hard: 0, good: 0, easy: 0, total: 0 };
+  setReviewing(true);
+
+  processNextCard();
+}
+
+/** 展示下一张卡片 */
+function processNextCard() {
+  if (reviewQueue.length === 0) {
+    setReviewing(false);
+    showComplete(sessionStats);
+    return;
+  }
+
+  const entry = reviewQueue.shift();
+  renderCard(entry.word, entry.mode, entry.confirmCount, async (quality) => {
+    await handleResult(entry, quality);
+    processNextCard();
   });
+}
+
+/** 处理用户评分结果 */
+async function handleResult(entry, quality) {
+  sessionStats.total++;
+  const word = entry.word;
+
+  if (entry.mode === 'normal') {
+    if (quality === 0) {
+      // 不认识 → 进 relearning 队列，7 张后重出
+      sessionStats.forgot++;
+      insertRelearning(word, 0);
+      // 不更新 IndexedDB，等 graduated 时再写入
+    } else {
+      // 认识/困难/简单 → SM-2 正常调度
+      const labels = { 2: 'hard', 4: 'good', 5: 'easy' };
+      sessionStats[labels[quality]]++;
+
+      const result = sm2(word, quality);
+      await updateWord(word.id, {
+        ef: result.ef,
+        interval: result.interval,
+        repetitions: result.repetitions,
+        nextReview: result.nextReview,
+        failCount: word.failCount || 0
+      });
+    }
+  } else {
+    // Relearning 模式
+    if (quality === 0) {
+      // 巩固中又点不认识 → 回到 relearning 起点，7 张后重出
+      sessionStats.forgot++;
+      insertRelearning(word, 0);
+    } else {
+      // 点认识
+      if (entry.confirmCount === 0) {
+        // 第一次确认 → 1 张后再次确认
+        insertRelearning(word, 1);
+      } else {
+        // 第二次确认 → graduated，SM-2 正常调度
+        sessionStats.good++;
+
+        const result = sm2({ ...word, repetitions: 0 }, 4); // quality=4，interval 从 1 天开始
+        await updateWord(word.id, {
+          ef: result.ef,
+          interval: result.interval,
+          repetitions: result.repetitions,
+          nextReview: result.nextReview,
+          failCount: (word.failCount || 0) + 1,
+          lastReviewed: new Date().toISOString()
+        });
+      }
+    }
+  }
+}
+
+/**
+ * 将单词插入 relearning 队列
+ * @param {Object} word
+ * @param {number} confirmCount - 0=初次确认, 1=二次确认
+ */
+function insertRelearning(word, confirmCount) {
+  const offset = confirmCount === 0 ? 6 : 0; // 0→7张后（跳过6张），1→紧接着（1张后）
+  const pos = Math.min(offset, reviewQueue.length);
+  reviewQueue.splice(pos, 0, { word, mode: 'relearning', confirmCount });
 }
 
 /**
