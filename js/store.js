@@ -270,3 +270,19 @@ export async function getTotalCount() {
     request.onerror = () => reject(request.error);
   });
 }
+
+/**
+ * 获取已同步的进度版本号
+ * @returns {string|null}
+ */
+export function getSyncVersion() {
+  return localStorage.getItem('wordFlashSyncVersion');
+}
+
+/**
+ * 设置已同步的进度版本号
+ * @param {string} version
+ */
+export function setSyncVersion(version) {
+  localStorage.setItem('wordFlashSyncVersion', version);
+}

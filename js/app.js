@@ -4,7 +4,7 @@
  */
 
 import { parseMarkdown } from './parser.js';
-import { importWords, getTodayReviewWords, getTopFailWords, exportAllData, importAllData } from './store.js';
+import { importWords, getTodayReviewWords, getTopFailWords, exportAllData, importAllData, getSyncVersion, setSyncVersion } from './store.js';
 import { startReview, getIsReviewing } from './ui.js';
 import { getStats, renderStats } from './stats.js';
 
@@ -21,6 +21,9 @@ async function init() {
   // 加载示例词库并导入
   await loadAndImportSample();
 
+  // 自动同步进度（合并后的 progress.json）
+  await autoSyncProgress();
+
   // 设置 Tab 导航
   setupTabs();
 
@@ -29,6 +32,41 @@ async function init() {
 
   // 导出/导入按钮事件
   setupDataActions();
+}
+
+/**
+ * 自动检测 words/progress.json 是否需要导入
+ * 如果文件版本比本地记录的更新，自动合并进度
+ */
+async function autoSyncProgress() {
+  try {
+    const resp = await fetch('words/progress.json', { cache: 'no-cache' });
+    if (!resp.ok) {
+      console.log('[AutoSync] progress.json 不存在，跳过');
+      return;
+    }
+    const json = await resp.json();
+    const fileVersion = json.version;
+    const localVersion = getSyncVersion();
+
+    if (fileVersion === localVersion) {
+      console.log('[AutoSync] 版本一致，无需同步');
+      return;
+    }
+
+    if (!json.words || !Array.isArray(json.words) || json.words.length === 0) {
+      console.warn('[AutoSync] progress.json 无有效词条');
+      return;
+    }
+
+    console.log(`[AutoSync] 检测到新版本 (本地: ${localVersion}, 文件: ${fileVersion})，开始导入...`);
+    const result = await importAllData(json.words);
+    setSyncVersion(fileVersion);
+    console.log(`[AutoSync] 完成，恢复 ${result.restored} 个词条`);
+  } catch (err) {
+    console.warn('[AutoSync] 同步失败', err);
+    // 静默失败，不影响正常使用
+  }
 }
 
 /**
