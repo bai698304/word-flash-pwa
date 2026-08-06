@@ -1,9 +1,9 @@
-/* Service Worker - 离线缓存 + 推送通知 */
+/* Service Worker - 离线缓存 v3 */
 
-const CACHE_NAME = 'word-flash-v2';
+const CACHE_NAME = 'word-flash-v3';
 
 // 需要即时更新的核心文件（network-first）
-const NETWORK_FIRST = ['/', './', 'index.html', 'js/app.js', 'js/ui.js'];
+const NETWORK_FIRST = ['/', './', 'index.html', 'js/bundle.js'];
 
 // 请求拦截：JS/HTML 走 network-first，其余走 cache-first
 self.addEventListener('fetch', event => {
@@ -41,18 +41,16 @@ self.addEventListener('fetch', event => {
   }
 });
 
-// 安装事件：仅声明激活，不预缓存（network-first 运行时自动缓存）
+// 安装事件：仅声明激活，不预缓存
 self.addEventListener('install', () => {
   self.skipWaiting();
 });
 
-// 激活事件：清理所有旧版本缓存
+// 激活事件：强制清除所有旧版本缓存
 self.addEventListener('activate', event => {
   event.waitUntil(
     caches.keys().then(keys => {
-      return Promise.all(
-        keys.filter(key => key !== CACHE_NAME).map(key => caches.delete(key))
-      );
+      return Promise.all(keys.map(key => caches.delete(key)));
     })
   );
   self.clients.claim();
