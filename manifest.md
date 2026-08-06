@@ -2,7 +2,7 @@
   "name": "考研词汇闪卡",
   "short_name": "词汇闪卡",
   "description": "基于 SM-2 遗忘曲线的 PWA 刷词应用",
-  "start_url": "/",
+  "start_url": "./",
   "display": "standalone",
   "theme_color": "#1a73e8",
   "background_color": "#ffffff",

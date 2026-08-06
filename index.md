@@ -7,8 +7,8 @@
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <title>考研词汇闪卡</title>
-  <link rel="manifest" href="/manifest.json">
-  <link rel="stylesheet" href="/css/style.css">
+  <link rel="manifest" href="./manifest.json">
+  <link rel="stylesheet" href="./css/style.css">
 </head>
 <body>
   <!-- 主页面 -->
@@ -102,6 +102,6 @@
   </div>
 
   <!-- 加载 ES Module 入口 -->
-  <script type="module" src="/js/app.js"></script>
+  <script type="module" src="./js/app.js"></script>
 </body>
 </html>

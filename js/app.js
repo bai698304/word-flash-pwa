@@ -356,8 +356,15 @@ async function loadPracticeTab() {
  * 加载统计 Tab
  */
 async function loadStatsTab() {
-  const stats = await getStats();
-  renderStats(stats);
+  try {
+    const stats = await getStats();
+    renderStats(stats);
+  } catch (err) {
+    console.error('[App] 加载统计失败:', err);
+    document.getElementById('stat-total').textContent = '错误';
+    document.getElementById('stat-mastered').textContent = '错误';
+    document.getElementById('stat-today').textContent = '错误';
+  }
 }
 
 /**
@@ -414,4 +421,10 @@ function setupDataActions() {
 }
 
 // 启动应用
-init().catch(err => console.error('[App] 初始化失败:', err));
+init().catch(err => {
+  console.error('[App] 初始化失败:', err);
+  const cardArea = document.getElementById('card-area');
+  if (cardArea) {
+    cardArea.innerHTML = `<p style="color: red; padding: 20px; text-align: center;">初始化失败：${err.message || '未知错误'}</p>`;
+  }
+});
