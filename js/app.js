@@ -9,8 +9,8 @@ import { renderCard, showComplete, setReviewing, getIsReviewing } from './ui.js'
 import { sm2 } from './sm2.js';
 import { getStats, renderStats } from './stats.js';
 
-/** 示例词库路径 */
-const SAMPLE_PATH = '/words/sample.md';
+/** 示例词库路径（相对路径，兼容 GitHub Pages 子目录） */
+const SAMPLE_PATH = 'words/sample.md';
 
 /**
  * 应用初始化
