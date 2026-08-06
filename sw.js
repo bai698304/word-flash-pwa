@@ -1,71 +1,61 @@
 /* Service Worker - 离线缓存 + 推送通知 */
 
-const CACHE_NAME = 'word-flash-v1';
+const CACHE_NAME = 'word-flash-v2';
 
-// 预缓存所有静态文件
-const STATIC_ASSETS = [
-  '/',
-  '/index.html',
-  '/manifest.json',
-  '/css/style.css',
-  '/js/app.js',
-  '/js/parser.js',
-  '/js/sm2.js',
-  '/js/store.js',
-  '/js/ui.js',
-  '/js/stats.js'
-];
+// 需要即时更新的核心文件（network-first）
+const NETWORK_FIRST = ['/', './', 'index.html', 'js/app.js', 'js/ui.js'];
 
-// 安装事件：预缓存静态资源
-self.addEventListener('install', event => {
-  event.waitUntil(
-    caches.open(CACHE_NAME).then(cache => {
-      console.log('[SW] 预缓存静态文件');
-      return cache.addAll(STATIC_ASSETS);
-    })
-  );
-  // 立即激活，不等待旧 SW
+// 请求拦截：JS/HTML 走 network-first，其余走 cache-first
+self.addEventListener('fetch', event => {
+  if (!event.request.url.startsWith('http')) return;
+
+  const url = new URL(event.request.url);
+  const path = url.pathname.replace(self.registration.scope, '/');
+  const isNetworkFirst = NETWORK_FIRST.some(p => path === p || path.endsWith('/' + p));
+
+  if (isNetworkFirst) {
+    // Network-first：优先网络，失败才用缓存
+    event.respondWith(
+      fetch(event.request).then(response => {
+        if (response && response.status === 200) {
+          const clone = response.clone();
+          caches.open(CACHE_NAME).then(cache => cache.put(event.request, clone));
+        }
+        return response;
+      }).catch(() => caches.match(event.request))
+    );
+  } else {
+    // Cache-first：优先缓存，失败才走网络
+    event.respondWith(
+      caches.match(event.request).then(cached => {
+        if (cached) return cached;
+        return fetch(event.request).then(response => {
+          if (response && response.status === 200) {
+            const clone = response.clone();
+            caches.open(CACHE_NAME).then(cache => cache.put(event.request, clone));
+          }
+          return response;
+        });
+      })
+    );
+  }
+});
+
+// 安装事件：仅声明激活，不预缓存（network-first 运行时自动缓存）
+self.addEventListener('install', () => {
   self.skipWaiting();
 });
 
-// 激活事件：清理旧缓存
+// 激活事件：清理所有旧版本缓存
 self.addEventListener('activate', event => {
   event.waitUntil(
     caches.keys().then(keys => {
       return Promise.all(
-        keys.filter(key => key !== CACHE_NAME)
-            .map(key => caches.delete(key))
+        keys.filter(key => key !== CACHE_NAME).map(key => caches.delete(key))
       );
     })
   );
   self.clients.claim();
-});
-
-// 请求拦截：缓存优先，离线兜底
-self.addEventListener('fetch', event => {
-  // 跳过 IndexedDB 等非 HTTP 请求
-  if (!event.request.url.startsWith('http')) return;
-
-  event.respondWith(
-    caches.match(event.request).then(cached => {
-      // 命中缓存直接返回
-      if (cached) return cached;
-
-      // 网络请求，成功后加入缓存
-      return fetch(event.request).then(response => {
-        if (!response || response.status !== 200) return response;
-
-        const clone = response.clone();
-        caches.open(CACHE_NAME).then(cache => {
-          cache.put(event.request, clone);
-        });
-        return response;
-      }).catch(() => {
-        // 离线时返回 index.html（SPA 兜底）
-        return caches.match('/index.html');
-      });
-    })
-  );
 });
 
 // 推送事件：显示复习提醒通知
@@ -79,10 +69,7 @@ self.addEventListener('push', event => {
     data: { url: '/' },
     vibrate: [200, 100, 200]
   };
-
-  event.waitUntil(
-    self.registration.showNotification(title, options)
-  );
+  event.waitUntil(self.registration.showNotification(title, options));
 });
 
 // 通知点击：打开应用
