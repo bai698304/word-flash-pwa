@@ -1,6 +1,9 @@
 /**
  * Markdown 词库解析器
- * 解析 sample.md 格式，输出 [{id, word, definition, sentence}] 数组
+ * 兼容两种格式：
+ *   旧格式：## word / - 解析：xxx / - 句子：xxx
+ *   新格式：### N. word / - **划线/标注释义**：意为**xxx** / - **文中片段**："xxx"
+ * 输出 [{id, word, definition, sentence}] 数组
  */
 
 /**
@@ -16,19 +19,20 @@ export function parseMarkdown(markdown) {
   for (const line of lines) {
     const trimmed = line.trim();
 
-    // 跳过标题行和空行
+    // 跳过一级标题和空行
     if (trimmed.startsWith('# ') || trimmed === '') {
       continue;
     }
 
-    // 匹配 ## word
-    const headingMatch = trimmed.match(/^## (.+)/);
+    // 匹配词条标题：旧格式 ## word，新格式 ### N. word（去掉编号和中文注释）
+    let headingMatch = trimmed.match(/^## (.+)/);
+    if (!headingMatch) {
+      headingMatch = trimmed.match(/^### \d+\.\s*([^(（]+)/);
+    }
     if (headingMatch) {
-      // 保存上一个词条
       if (currentWord && currentWord.word) {
         words.push(currentWord);
       }
-      // 新建词条
       currentWord = {
         id: generateId(headingMatch[1].trim()),
         word: headingMatch[1].trim(),
@@ -38,17 +42,36 @@ export function parseMarkdown(markdown) {
       continue;
     }
 
-    // 匹配 - 解析：xxx
-    const defMatch = trimmed.match(/^- 解析[：:]\s*(.+)/);
-    if (defMatch && currentWord) {
+    // 匹配释义：旧格式 - 解析：xxx
+    let defMatch = trimmed.match(/^- 解析[：:]\s*(.+)/);
+    if (defMatch && currentWord && !currentWord.definition) {
       currentWord.definition = defMatch[1].trim();
       continue;
     }
 
-    // 匹配 - 句子：xxx
-    const sentMatch = trimmed.match(/^- 句子[：:]\s*(.+)/);
-    if (sentMatch && currentWord) {
+    // 匹配释义：新格式 - **划线/标注释义**：......意为**xxx**...
+    defMatch = trimmed.match(/^- \*\*划线.标注释义\*\*[：:]?\s*(.+)/);
+    if (defMatch && currentWord && !currentWord.definition) {
+      let def = defMatch[1].trim();
+      const meaningMatch = def.match(/意为\*{0,2}(.+?)\*{0,2}[。.]?$/);
+      if (meaningMatch) {
+        def = meaningMatch[1].trim();
+      }
+      currentWord.definition = def;
+      continue;
+    }
+
+    // 匹配例句：旧格式 - 句子：xxx
+    let sentMatch = trimmed.match(/^- 句子[：:]\s*(.+)/);
+    if (sentMatch && currentWord && !currentWord.sentence) {
       currentWord.sentence = sentMatch[1].trim();
+      continue;
+    }
+
+    // 匹配例句：新格式 - **文中片段**："xxx"
+    sentMatch = trimmed.match(/^- \*\*文中片段\*\*[：:]?\s*(.+)/);
+    if (sentMatch && currentWord && !currentWord.sentence) {
+      currentWord.sentence = sentMatch[1].trim().replace(/^["\u201C\u201D]|["\u201C\u201D]$/g, '');
       continue;
     }
   }
@@ -58,7 +81,8 @@ export function parseMarkdown(markdown) {
     words.push(currentWord);
   }
 
-  return words;
+  // 过滤无释义的条目（如 ## Turn 1、## 第一部分 等章节标题）
+  return words.filter(function (w) { return w.definition; });
 }
 
 /**
