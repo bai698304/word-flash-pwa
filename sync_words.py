@@ -3,6 +3,7 @@
 用法：在"每日单词背诵"下新增/修改 Markdown 文档后 → 双击运行本脚本。
 """
 
+import hashlib
 import json
 import os
 import re
@@ -97,10 +98,20 @@ def sync_from_source():
     # 清理源目录已删除或已被过滤的旧文件
     cleanup_orphaned_files(src_md_files)
 
-    # 生成 manifest
+    # 生成 manifest（含文件哈希用于变更检测）
+    hashes = {}
+    for f in src_md_files:
+        dst = os.path.join(WORDS_DIR, f)
+        sha = hashlib.sha256()
+        with open(dst, "rb") as fh:
+            for chunk in iter(lambda: fh.read(8192), b""):
+                sha.update(chunk)
+        hashes[f] = sha.hexdigest()[:12]
+
     manifest = {
         "version": datetime.now().isoformat(),
-        "files": src_md_files
+        "files": src_md_files,
+        "hashes": hashes
     }
 
     with open(MANIFEST_FILE, "w", encoding="utf-8") as f:
