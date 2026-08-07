@@ -1,4 +1,4 @@
-/**
+﻿/**
  * 主入口模块
  * 初始化应用、路由控制、Tab 切换
  */
@@ -86,20 +86,27 @@ async function autoSyncWords() {
     }
     const manifest = await resp.json();
     const allFiles = manifest.files || [];
+    const fileHashes = manifest.hashes || {};
     if (allFiles.length === 0) return;
 
-    // 读取已导入记录
-    const imported = JSON.parse(localStorage.getItem('wordFlashImportedFiles') || '[]');
-    const newFiles = allFiles.filter(f => !imported.includes(f));
+    // 读取已导入记录（{filename: hash} 映射）
+    const importedHashes = JSON.parse(localStorage.getItem('wordFlashImportedHashes') || '{}');
 
-    if (newFiles.length === 0) {
-      console.log('[AutoSync] 没有新词库文件');
+    // 按哈希检测变更：新文件 或 哈希变化
+    const changedFiles = allFiles.filter(f => {
+      const hash = fileHashes[f];
+      if (!hash) return !importedHashes[f]; // 无哈希兜底按文件名判断
+      return importedHashes[f] !== hash;
+    });
+
+    if (changedFiles.length === 0) {
+      console.log('[AutoSync] 没有新词库文件或变更');
       return;
     }
 
-    console.log(`[AutoSync] 发现 ${newFiles.length} 个新词库: ${newFiles.join(', ')}`);
+    console.log(`[AutoSync] 发现 ${changedFiles.length} 个新/变更词库: ${changedFiles.join(', ')}`);
 
-    for (const file of newFiles) {
+    for (const file of changedFiles) {
       try {
         const mdResp = await fetch(`words/${encodeURIComponent(file)}`, { cache: 'no-cache' });
         if (!mdResp.ok) continue;
@@ -109,14 +116,19 @@ async function autoSyncWords() {
           const result = await importWords(words);
           console.log(`[AutoSync] ${file}: 新增 ${result.added} 词, 跳过 ${result.skipped} 词`);
         }
+        // 更新该文件的哈希记录
+        if (fileHashes[file]) {
+          importedHashes[file] = fileHashes[file];
+        } else {
+          importedHashes[file] = 'legacy';
+        }
       } catch (e) {
         console.warn(`[AutoSync] ${file} 处理失败`, e);
       }
     }
 
     // 更新已导入记录
-    const newList = [...new Set([...imported, ...newFiles])];
-    localStorage.setItem('wordFlashImportedFiles', JSON.stringify(newList));
+    localStorage.setItem('wordFlashImportedHashes', JSON.stringify(importedHashes));
   } catch (err) {
     console.warn('[AutoSync] 词库同步失败', err);
   }

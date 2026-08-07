@@ -1,12 +1,4 @@
-/**
- * Word Flash PWA - 合并核心脚本
- * 将所有模块合并为单文件，消除 ES Module 依赖链问题
- * 模块顺序：parser → sm2 → store → ui → stats → app
- */
-
-/* ================================================================
- * 模块 1: parser.js — 已合并
- * ================================================================ */
+﻿// ===== parser.js =====
 
 /**
  * Markdown 词库解析器
@@ -111,10 +103,7 @@ function generateId(word) {
   return `${Math.abs(hash).toString(36)}_${word.replace(/\s+/g, '_')}`;
 }
 
-
-/* ================================================================
- * 模块 2: sm2.js — 已合并
- * ================================================================ */
+// ===== sm2.js =====
 
 /**
  * SM-2 间隔重复算法
@@ -197,10 +186,7 @@ function qualityLabel(quality) {
   return labels[quality] || '未知';
 }
 
-
-/* ================================================================
- * 模块 3: store.js — 已合并
- * ================================================================ */
+// ===== store.js =====
 
 /**
  * IndexedDB 存储层
@@ -491,15 +477,13 @@ function setSyncVersion(version) {
   localStorage.setItem('wordFlashSyncVersion', version);
 }
 
-
-/* ================================================================
- * 模块 4: ui.js — 已合并
- * ================================================================ */
+// ===== ui.js =====
 
 /**
  * 卡片 UI 模块
  * 支持两种模式：normal（四档评分）和 relearning（认识/不认识双按钮）
  */
+
 
 
 /** 是否正在复习中（防止重复触发） */
@@ -597,16 +581,14 @@ function escapeHtml(str) {
   return div.innerHTML;
 }
 
-
-/* ================================================================
- * 模块 5: stats.js — 已合并
- * ================================================================ */
+// ===== stats.js =====
 
 /**
  * 统计模块
  * 提供学习数据统计查询
  */
 
+import {
   getTopFailWords,
   getTodayReviewWords,
   getMasteredCount,
@@ -663,15 +645,17 @@ function renderStats(stats) {
     .join('');
 }
 
-
-/* ================================================================
- * 模块 6: app.js — 已合并
- * ================================================================ */
+// ===== app.md =====
 
 /**
  * 主入口模块
  * 初始化应用、路由控制、Tab 切换
  */
+
+
+
+
+
 
 
 /** 示例词库路径（相对路径，兼容 GitHub Pages 子目录） */
@@ -751,20 +735,27 @@ async function autoSyncWords() {
     }
     const manifest = await resp.json();
     const allFiles = manifest.files || [];
+    const fileHashes = manifest.hashes || {};
     if (allFiles.length === 0) return;
 
-    // 读取已导入记录
-    const imported = JSON.parse(localStorage.getItem('wordFlashImportedFiles') || '[]');
-    const newFiles = allFiles.filter(f => !imported.includes(f));
+    // 读取已导入记录（{filename: hash} 映射）
+    const importedHashes = JSON.parse(localStorage.getItem('wordFlashImportedHashes') || '{}');
 
-    if (newFiles.length === 0) {
-      console.log('[AutoSync] 没有新词库文件');
+    // 按哈希检测变更：新文件 或 哈希变化
+    const changedFiles = allFiles.filter(f => {
+      const hash = fileHashes[f];
+      if (!hash) return !importedHashes[f]; // 无哈希兜底按文件名判断
+      return importedHashes[f] !== hash;
+    });
+
+    if (changedFiles.length === 0) {
+      console.log('[AutoSync] 没有新词库文件或变更');
       return;
     }
 
-    console.log(`[AutoSync] 发现 ${newFiles.length} 个新词库: ${newFiles.join(', ')}`);
+    console.log(`[AutoSync] 发现 ${changedFiles.length} 个新/变更词库: ${changedFiles.join(', ')}`);
 
-    for (const file of newFiles) {
+    for (const file of changedFiles) {
       try {
         const mdResp = await fetch(`words/${encodeURIComponent(file)}`, { cache: 'no-cache' });
         if (!mdResp.ok) continue;
@@ -774,14 +765,19 @@ async function autoSyncWords() {
           const result = await importWords(words);
           console.log(`[AutoSync] ${file}: 新增 ${result.added} 词, 跳过 ${result.skipped} 词`);
         }
+        // 更新该文件的哈希记录
+        if (fileHashes[file]) {
+          importedHashes[file] = fileHashes[file];
+        } else {
+          importedHashes[file] = 'legacy';
+        }
       } catch (e) {
         console.warn(`[AutoSync] ${file} 处理失败`, e);
       }
     }
 
     // 更新已导入记录
-    const newList = [...new Set([...imported, ...newFiles])];
-    localStorage.setItem('wordFlashImportedFiles', JSON.stringify(newList));
+    localStorage.setItem('wordFlashImportedHashes', JSON.stringify(importedHashes));
   } catch (err) {
     console.warn('[AutoSync] 词库同步失败', err);
   }
@@ -1093,4 +1089,3 @@ init().catch(err => {
     cardArea.innerHTML = `<p style="color: red; padding: 20px; text-align: center;">初始化失败：${err.message || '未知错误'}</p>`;
   }
 });
-
