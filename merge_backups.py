@@ -17,19 +17,25 @@ OUTPUT_FILE = os.path.join(WORDS_DIR, "progress.json")
 def git_commit_and_push():
     """提交 progress.json 并推送到 GitHub"""
     try:
-        # 切到项目目录
-        subprocess.run(["git", "add", "words/progress.json"], cwd=SCRIPT_DIR, check=True, capture_output=True)
+        # 先拉取远程更新，避免 push 时冲突
+        print("拉取远程更新...")
+        subprocess.run(["git", "pull", "--rebase", "origin", "main"],
+                       cwd=SCRIPT_DIR, check=True)
+    except subprocess.CalledProcessError as e:
+        print(f"警告: 拉取远程更新失败，继续尝试提交。错误: {e}")
+
+    try:
+        subprocess.run(["git", "add", "words/progress.json"], cwd=SCRIPT_DIR, check=True)
         subprocess.run(["git", "commit", "-m", f"sync: merge phone progress {datetime.now().strftime('%m-%d %H:%M')}"],
-                       cwd=SCRIPT_DIR, check=True, capture_output=True)
-        subprocess.run(["git", "push"], cwd=SCRIPT_DIR, check=True, capture_output=True)
+                       cwd=SCRIPT_DIR, check=True)
+        subprocess.run(["git", "push"], cwd=SCRIPT_DIR, check=True)
         print("已推送到 GitHub Pages（约 1 分钟后生效）")
         return True
     except subprocess.CalledProcessError as e:
-        err = e.stderr.decode() if e.stderr else str(e)
-        if "nothing to commit" in err:
+        if "nothing to commit" in str(e):
             print("无变更需要推送")
             return True
-        print(f"Git 操作失败:\n{err}")
+        print(f"Git 操作失败:\n{e}")
         return False
 
 
@@ -70,9 +76,8 @@ def main():
 
     print(f"\n合并完成：{len(merged)} 个词条 → {OUTPUT_FILE}")
 
-    for fpath in backup_files:
-        os.remove(fpath)
-        print(f"已清理: {os.path.basename(fpath)}")
+    # 保留备份文件，不自动删除
+    print(f"\n保留 {len(backup_files)} 个备份文件，未删除。")
 
     # 自动 push 到 GitHub
     print()

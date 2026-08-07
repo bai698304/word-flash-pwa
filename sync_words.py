@@ -5,6 +5,7 @@
 
 import json
 import os
+import re
 import shutil
 import subprocess
 from datetime import datetime
@@ -16,26 +17,43 @@ MANIFEST_FILE = os.path.join(WORDS_DIR, "manifest.json")
 # 用户的原始词库目录
 SOURCE_DIR = r"D:\obsidian\vault\英语学习\每日单词背诵"
 
+# 需要过滤的文件名模式：考研阅读真题译文（如 2026-text-1-translation.md）
+EXCLUDE_PATTERN = re.compile(r"text.*translation", re.IGNORECASE)
+
+
+def should_exclude(filename):
+    """返回 True 表示该文件应被过滤"""
+    return bool(EXCLUDE_PATTERN.search(filename))
+
 
 def sync_from_source():
-    """从每日单词背诵目录拷贝所有 .md 到 words/"""
+    """从每日单词背诵目录拷贝 .md 到 words/，自动过滤译文等非词库文件"""
     if not os.path.isdir(SOURCE_DIR):
         print(f"源目录不存在: {SOURCE_DIR}")
         return None
 
     os.makedirs(WORDS_DIR, exist_ok=True)
 
-    # 收集源目录所有 .md 文件
+    # 收集源目录所有 .md 文件，过滤掉译文
     src_md_files = []
+    excluded_files = []
     for f in sorted(os.listdir(SOURCE_DIR)):
         if f.endswith(".md"):
-            src_md_files.append(f)
+            if should_exclude(f):
+                excluded_files.append(f)
+            else:
+                src_md_files.append(f)
+
+    if excluded_files:
+        print(f"已过滤 {len(excluded_files)} 个非词库文件：")
+        for f in excluded_files:
+            print(f"  [跳过] {f}")
 
     if not src_md_files:
-        print(f"源目录下没有 .md 文件: {SOURCE_DIR}")
+        print(f"源目录下没有可同步的词库文件: {SOURCE_DIR}")
         return None
 
-    print(f"从 {SOURCE_DIR} 同步 {len(src_md_files)} 个词库文件：")
+    print(f"\n从 {SOURCE_DIR} 同步 {len(src_md_files)} 个词库文件：")
     for f in src_md_files:
         src = os.path.join(SOURCE_DIR, f)
         dst = os.path.join(WORDS_DIR, f)
@@ -57,18 +75,25 @@ def sync_from_source():
 
 def git_commit_and_push():
     try:
-        subprocess.run(["git", "add", "words/"], cwd=SCRIPT_DIR, check=True, capture_output=True)
+        # 先拉取远程更新，避免 push 时冲突
+        print("拉取远程更新...")
+        subprocess.run(["git", "pull", "--rebase", "origin", "main"],
+                       cwd=SCRIPT_DIR, check=True)
+    except subprocess.CalledProcessError as e:
+        print(f"警告: 拉取远程更新失败，继续尝试提交。错误: {e}")
+
+    try:
+        subprocess.run(["git", "add", "words/"], cwd=SCRIPT_DIR, check=True)
         subprocess.run(["git", "commit", "-m", f"sync: update words {datetime.now().strftime('%m-%d %H:%M')}"],
-                       cwd=SCRIPT_DIR, check=True, capture_output=True)
-        subprocess.run(["git", "push"], cwd=SCRIPT_DIR, check=True, capture_output=True)
+                       cwd=SCRIPT_DIR, check=True)
+        subprocess.run(["git", "push"], cwd=SCRIPT_DIR, check=True)
         print("已推送到 GitHub Pages（约 1 分钟后生效）")
         return True
     except subprocess.CalledProcessError as e:
-        err = e.stderr.decode() if e.stderr else str(e)
-        if "nothing to commit" in err:
+        if "nothing to commit" in str(e):
             print("无变更需要推送")
             return True
-        print(f"Git 操作失败:\n{err}")
+        print(f"Git 操作失败:\n{e}")
         return False
 
 
