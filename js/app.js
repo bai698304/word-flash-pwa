@@ -139,11 +139,11 @@ async function autoSyncWords() {
  */
 function registerSW() {
   if ('serviceWorker' in navigator) {
-    // 兼容 GitHub Pages 子目录（如 /repo-name/）和根路径
-    const swPath = new URL('./sw.js', import.meta.url).pathname;
-    navigator.serviceWorker.register(swPath)
-      .then(reg => console.log('[App] SW 注册成功', reg.scope))
-      .catch(err => console.warn('[App] SW 注册失败（本地 HTTP 环境正常）', err));
+    // 基于页面 URL 计算 sw.js 路径，兼容根路径和子目录部署
+    var base = location.pathname.replace(/\/[^/]*$/, '/');
+    navigator.serviceWorker.register(base + 'sw.js')
+      .then(function (reg) { console.log('[App] SW 注册成功', reg.scope); })
+      .catch(function (err) { console.warn('[App] SW 注册失败', err); });
   }
 }
 
