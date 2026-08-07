@@ -26,6 +26,40 @@ def should_exclude(filename):
     return bool(EXCLUDE_PATTERN.search(filename))
 
 
+def cleanup_orphaned_files(new_files):
+    """
+    清理 words/ 中已被源目录删除或新规则过滤的文件。
+    只触碰旧 manifest 中记录过的文件，不动手动投放的文件（如 sample.md）。
+    """
+    if not os.path.exists(MANIFEST_FILE):
+        return  # 首次运行，无旧记录
+
+    try:
+        with open(MANIFEST_FILE, "r", encoding="utf-8") as f:
+            old_manifest = json.load(f)
+        old_files = set(old_manifest.get("files", []))
+    except (json.JSONDecodeError, KeyError, TypeError):
+        print("[警告] manifest.json 格式异常，跳过清理")
+        return
+
+    new_set = set(new_files)
+    to_remove = old_files - new_set
+
+    if not to_remove:
+        return
+
+    print(f"\n清理 {len(to_remove)} 个已移除的文件：")
+    for f in sorted(to_remove):
+        path = os.path.join(WORDS_DIR, f)
+        if not os.path.exists(path):
+            continue
+        try:
+            os.remove(path)
+            print(f"  [删除] words/{f}")
+        except OSError as e:
+            print(f"  [删除失败] words/{f}: {e}")
+
+
 def sync_from_source():
     """从每日单词背诵目录拷贝 .md 到 words/，自动过滤译文等非词库文件"""
     if not os.path.isdir(SOURCE_DIR):
@@ -59,6 +93,9 @@ def sync_from_source():
         dst = os.path.join(WORDS_DIR, f)
         shutil.copy2(src, dst)
         print(f"  {f} → words/{f}")
+
+    # 清理源目录已删除或已被过滤的旧文件
+    cleanup_orphaned_files(src_md_files)
 
     # 生成 manifest
     manifest = {
